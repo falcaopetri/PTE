@@ -9,8 +9,10 @@ import codecs
 import argparse
 import getpass
 import base64
+import json
 
 from nizkctf.cli import scoreboard, challenges, news, team, localserver
+from nizkctf.team import Team
 from nizkctf.repohost import RepoHost
 from nizkctf.subrepo import SubRepo
 from nizkctf.challenge import Challenge, derive_keypair, random_salt
@@ -138,6 +140,30 @@ def cmd_news(args):
 def cmd_add_news(args):
     news.News().add(args.msg, args.to)
 
+def cmd_teams_by_score(args):
+    if args.pull:
+        SubRepo.pull()
+
+    ranking, submissions = scoreboard.rank()
+    
+    filtered = []
+    m = {}
+    for team, score in ranking:
+        team_name = Team(id=team)['name']
+        if team_name not in m:
+            m[team_name] = 0
+        m[team_name] += 1
+
+    for team_name, score in m.items():
+        if score >= args.score:
+            d = {}
+            d["name"] = team_name
+            d["solved"] = []
+            filtered.append(d)
+
+    print(json.dumps(filtered))
+    
+
 def main():
     if PY2:
         sys.argv = map(to_unicode, sys.argv)
@@ -155,6 +181,7 @@ def main():
 
         'news': cmd_news,
         'add_news': cmd_add_news,
+        'teams_by_score': cmd_teams_by_score,
     }
 
     parser = argparse.ArgumentParser(description='nizk CTF cli')
@@ -223,6 +250,12 @@ def main():
     parser_add_news.add_argument('--msg', required=True, help='msg to be added')
     parser_add_news.add_argument('--to', help='team name')
 
+    parser_teams_by_score = subparsers.add_parser('teams_by_score', help='get the teams with more than n accepts')
+    parser_teams_by_score.set_defaults(command='teams_by_score')
+    parser_teams_by_score.add_argument('--pull', action='store_true',
+                              help='pull news before displaying news')
+    parser_teams_by_score.add_argument('--score', required=True, type=int,
+                                help='number of minimum acceptions')
 
     args = parser.parse_args()
     commands[args.command](args)
